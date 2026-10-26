@@ -1,0 +1,167 @@
+
+.civic-assistant {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  min-height: 480px;
+  margin: 24px auto;
+  overflow: hidden;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: 0 8px 30px rgb(15 23 42 / 7%);
+}
+
+.civic-assistant__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #e5eaf1;
+  background: #f8fafc;
+}
+
+.civic-assistant__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.civic-assistant__header p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.civic-assistant__status {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.civic-assistant__messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.civic-assistant__message {
+  max-width: 88%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.civic-assistant__message--assistant {
+  align-self: flex-start;
+  background: #f1f5f9;
+}
+
+.civic-assistant__message--user {
+  align-self: flex-end;
+  background: #dbeafe;
+}
+
+.civic-assistant__role {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.civic-assistant__message p {
+  margin: 6px 0 0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.civic-assistant__loading {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.civic-assistant__error {
+  margin: 0 20px 12px;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.civic-assistant__form {
+  padding: 16px 20px 20px;
+  border-top: 1px solid #e5eaf1;
+}
+
+.civic-assistant__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.civic-assistant__input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.civic-assistant__input-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.civic-assistant__input-row button {
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 9px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.civic-assistant__input-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 520px) {
+  .civic-assistant {
+    min-height: 420px;
+    border-radius: 12px;
+  }
+
+  .civic-assistant__header {
+    padding: 16px;
+  }
+
+  .civic-assistant__messages {
+    padding: 16px;
+  }
+
+  .civic-assistant__message {
+    max-width: 95%;
+  }
+
+  .civic-assistant__form {
+    padding: 14px 16px 16px;
+  }
+
+  .civic-assistant__input-row {
+    flex-direction: column;
+  }
+
+  .civic-assistant__input-row button {
+    width: 100%;
+  }
+}

@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import Auth from './Auth'
+import CivicAssistant from './CivicAssistant'
 import { supabase } from './lib/supabase'
 import './index.css'
 
@@ -38,6 +39,7 @@ type Page =
   | 'Neighborhoods'
   | 'Rewards'
   | 'Knowledge Hub'
+  | 'AI Assistant'
   | 'Submit Proof'
   | 'My Contributions'
   | 'Become an Area Admin'
@@ -1199,6 +1201,7 @@ function App() {
             { label: 'Neighborhoods' as Page, icon: Globe2 },
             { label: 'Rewards' as Page, icon: Gift },
             { label: 'Knowledge Hub' as Page, icon: BookOpen },
+            { label: 'AI Assistant' as Page, icon: Sparkles },
             { label: 'Submit Proof' as Page, icon: ShieldCheck },
             { label: 'My Contributions' as Page, icon: CheckCircle2 },
             ...(profile.role === 'citizen' ? [{ label: 'Become an Area Admin' as Page, icon: ShieldCheck }] : []),
@@ -2199,6 +2202,17 @@ function App() {
                   onClick={() => notify('Learning resources are coming soon.')}
                 />
               </div>
+            </section>
+          )}
+
+          {page === 'AI Assistant' && (
+            <section className="section-block page-section">
+              <div className="eyebrow">CIVIC SUPPORT, ONE QUESTION AT A TIME</div>
+              <h2>CivicQuest AI Assistant</h2>
+              <p className="page-intro">
+                Get practical, non-partisan guidance on community participation and constructive civic action.
+              </p>
+              <CivicAssistant />
             </section>
           )}
 
