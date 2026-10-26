@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from './lib/supabase'
 import {
@@ -10,6 +9,12 @@ import {
   ArrowRight,
   LoaderCircle,
   Building2,
+  Sparkles,
+  ShieldCheck,
+  HeartHandshake,
+  Leaf,
+  Users,
+  CheckCircle2,
 } from 'lucide-react'
 
 type AuthProps = {
@@ -42,7 +47,6 @@ export default function Auth({ onAuthenticated }: AuthProps) {
 
     async function loadAreas() {
       setAreasLoading(true)
-
       const { data, error } = await supabase
         .from('areas')
         .select('id, name')
@@ -55,17 +59,13 @@ export default function Auth({ onAuthenticated }: AuthProps) {
       } else {
         const loadedAreas = (data || []) as Area[]
         setAreas(loadedAreas)
-
-        if (loadedAreas.length === 1) {
-          setAreaId(loadedAreas[0].id)
-        }
+        if (loadedAreas.length === 1) setAreaId(loadedAreas[0].id)
       }
 
       setAreasLoading(false)
     }
 
     void loadAreas()
-
     return () => {
       active = false
     }
@@ -77,7 +77,7 @@ export default function Auth({ onAuthenticated }: AuthProps) {
     userEmail: string,
     selectedAreaId: string,
   ) {
-    // Check first so signing in again does not create duplicate applications.
+    // Avoid creating duplicate applications when a company signs in again.
     const { data: existing, error: lookupError } = await supabase
       .from('company_applications')
       .select('id, status')
@@ -85,14 +85,9 @@ export default function Auth({ onAuthenticated }: AuthProps) {
       .maybeSingle()
 
     if (lookupError) {
-      throw new Error(
-        `Could not check your company application: ${lookupError.message}`,
-      )
+      throw new Error(`Could not check your company application: ${lookupError.message}`)
     }
-
-    if (existing) {
-      return existing.status as string
-    }
+    if (existing) return existing.status as string
 
     const { error: insertError } = await supabase
       .from('company_applications')
@@ -104,11 +99,8 @@ export default function Auth({ onAuthenticated }: AuthProps) {
       })
 
     if (insertError) {
-      throw new Error(
-        `Could not submit your company application: ${insertError.message}`,
-      )
+      throw new Error(`Could not submit your company application: ${insertError.message}`)
     }
-
     return 'pending'
   }
 
@@ -120,52 +112,33 @@ export default function Auth({ onAuthenticated }: AuthProps) {
 
     try {
       if (mode === 'signup') {
-        if (!areaId) {
-          throw new Error('Please select your area.')
-        }
-
+        if (!areaId) throw new Error('Please select your area.')
         const selectedArea = areas.find((area) => area.id === areaId)
-
-        if (!selectedArea) {
-          throw new Error('Please select an available area.')
-        }
-
-        if (accountType === 'citizen' && !name.trim()) {
-          throw new Error('Please enter your name.')
-        }
-
+        if (!selectedArea) throw new Error('Please select an available area.')
+        if (accountType === 'citizen' && !name.trim()) throw new Error('Please enter your name.')
         if (accountType === 'company' && !companyName.trim()) {
           throw new Error('Please enter your company name.')
         }
 
-        const displayName =
-          accountType === 'company'
-            ? companyName.trim()
-            : name.trim()
-
-        const { data, error: signUpError } =
-          await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-            options: {
-              data: {
-                display_name: displayName,
-                area_id: areaId,
-                area_name: selectedArea.name,
-                account_type: accountType,
-                company_name:
-                  accountType === 'company'
-                    ? companyName.trim()
-                    : null,
-              },
+        const displayName = accountType === 'company' ? companyName.trim() : name.trim()
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              display_name: displayName,
+              area_id: areaId,
+              area_name: selectedArea.name,
+              account_type: accountType,
+              company_name: accountType === 'company' ? companyName.trim() : null,
             },
-          })
+          },
+        })
 
         if (signUpError) throw signUpError
 
         if (data.session && data.user) {
-          // All public registrations start with the citizen role.
-          // Company access must be approved separately.
+          // Public sign-ups always start as citizens; company access is reviewed separately.
           const { error: profileError } = await supabase
             .from('profiles')
             .upsert(
@@ -179,9 +152,7 @@ export default function Auth({ onAuthenticated }: AuthProps) {
             )
 
           if (profileError) {
-            throw new Error(
-              `Account created, but profile setup failed: ${profileError.message}`,
-            )
+            throw new Error(`Account created, but profile setup failed: ${profileError.message}`)
           }
 
           if (accountType === 'company') {
@@ -191,7 +162,6 @@ export default function Auth({ onAuthenticated }: AuthProps) {
               email.trim(),
               areaId,
             )
-
             setMessage(
               status === 'approved'
                 ? 'Your company application is already approved. Your company dashboard access must be enabled by the app.'
@@ -199,8 +169,6 @@ export default function Auth({ onAuthenticated }: AuthProps) {
                   ? 'Your company application was previously rejected. Please contact the administrator.'
                   : 'Company account created! Your application is pending Super Admin approval.',
             )
-
-            // Do not route an unapproved company into the citizen dashboard.
             return
           }
 
@@ -213,40 +181,26 @@ export default function Auth({ onAuthenticated }: AuthProps) {
           )
         }
       } else {
-        const { data, error: signInError } =
-          await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          })
-
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        })
         if (signInError) throw signInError
 
         const user = data.user
+        if (!user) throw new Error('Sign-in succeeded, but no user was returned.')
 
-        if (!user) {
-          throw new Error('Sign-in succeeded, but no user was returned.')
-        }
-
-        // Read the account type from signup metadata.
-        // Metadata alone never grants an elevated database role.
+        // Metadata identifies company registrations but never grants elevated database roles.
         const metadata = user.user_metadata || {}
         const isCompany = metadata.account_type === 'company'
 
         if (isCompany) {
           const metadataCompanyName =
-            typeof metadata.company_name === 'string'
-              ? metadata.company_name.trim()
-              : ''
-
-          const metadataAreaId =
-            typeof metadata.area_id === 'string'
-              ? metadata.area_id
-              : ''
+            typeof metadata.company_name === 'string' ? metadata.company_name.trim() : ''
+          const metadataAreaId = typeof metadata.area_id === 'string' ? metadata.area_id : ''
 
           if (!metadataCompanyName || !metadataAreaId) {
-            throw new Error(
-              'Company details are incomplete. Please contact the administrator.',
-            )
+            throw new Error('Company details are incomplete. Please contact the administrator.')
           }
 
           const status = await submitCompanyApplication(
@@ -263,18 +217,13 @@ export default function Auth({ onAuthenticated }: AuthProps) {
                 ? 'Your company application was rejected. Please contact the administrator.'
                 : 'Signed in successfully. Your company application is pending Super Admin approval.',
           )
-
           return
         }
 
         onAuthenticated()
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Something went wrong.',
-      )
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
       setLoading(false)
     }
@@ -287,216 +236,198 @@ export default function Auth({ onAuthenticated }: AuthProps) {
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="auth-brand">
-          <span className="auth-logo">
-            <Globe2 size={25} />
-          </span>
-          <div>
-            <strong>
-              civic<span>quest</span>
-            </strong>
-            <small>Make good things happen.</small>
+    <main className="auth-page auth-page-premium">
+      <div className="auth-orb auth-orb-one" aria-hidden="true" />
+      <div className="auth-orb auth-orb-two" aria-hidden="true" />
+
+      <div className="auth-layout">
+        <aside className="auth-showcase">
+          <div className="auth-showcase-top">
+            <span className="auth-showcase-logo"><Globe2 size={23} /></span>
+            <span className="auth-showcase-brand">civic<span>quest</span></span>
+            <span className="auth-live-pill"><span /> COMMUNITY POWERED</span>
           </div>
-        </div>
 
-        <p className="eyebrow">YOUR COMMUNITY STARTS HERE</p>
+          <div className="auth-showcase-copy">
+            <p className="auth-kicker"><Sparkles size={14} /> SMALL ACTIONS. REAL IMPACT.</p>
+            <h2>Make your<br />corner of the<br /><em>world better.</em></h2>
+            <p className="auth-showcase-description">
+              Turn everyday good deeds into meaningful change. Find local quests,
+              help your neighbours, and build a stronger community together.
+            </p>
+            <div className="auth-impact-points">
+              <div><span className="auth-impact-icon"><Leaf size={17} /></span><span><strong>Act locally</strong><small>Discover things you can do nearby</small></span></div>
+              <div><span className="auth-impact-icon"><Users size={17} /></span><span><strong>Grow together</strong><small>Team up with people who care</small></span></div>
+              <div><span className="auth-impact-icon"><ShieldCheck size={17} /></span><span><strong>Build trust</strong><small>Show your community contributions</small></span></div>
+            </div>
+          </div>
 
-        <h1>
-          {mode === 'login'
-            ? 'Welcome back.'
-            : 'Join the movement.'}
-        </h1>
+          <div className="auth-showcase-bottom">
+            <div className="auth-avatar-stack" aria-hidden="true">
+              <span>Y</span><span>A</span><span>R</span><span><HeartHandshake size={15} /></span>
+            </div>
+            <p><strong>Progress starts with people.</strong><small>Every helpful action counts.</small></p>
+            <div className="auth-sparkle"><CheckCircle2 size={22} /></div>
+          </div>
+          <div className="auth-decor-ring auth-decor-ring-one" aria-hidden="true" />
+          <div className="auth-decor-ring auth-decor-ring-two" aria-hidden="true" />
+        </aside>
 
-        <p className="auth-subtitle">
-          {mode === 'login'
-            ? 'Sign in to continue making a difference.'
-            : 'Create an account and start contributing to your community.'}
-        </p>
+        <section className="auth-card auth-card-premium">
+          <div className="auth-mobile-brand">
+            <span className="auth-logo"><Globe2 size={23} /></span>
+            <span>civic<strong>quest</strong></span>
+          </div>
 
-        <form onSubmit={handleSubmit}>
-          {mode === 'signup' && (
-            <>
-              <label className="auth-field">
-                <span>Account type</span>
-                <div>
-                  {accountType === 'company' ? (
-                    <Building2 size={17} />
-                  ) : (
-                    <User size={17} />
-                  )}
-                  <select
-                    value={accountType}
-                    onChange={(event) =>
-                      setAccountType(
-                        event.target.value as AccountType,
-                      )
-                    }
-                  >
-                    <option value="citizen">Citizen</option>
-                    <option value="company">Company / Sponsor</option>
-                  </select>
-                </div>
-              </label>
+          <div className="auth-form-heading">
+            <p className="eyebrow"><span className="auth-heading-dot" /> YOUR COMMUNITY STARTS HERE</p>
+            <h1>{mode === 'login' ? 'Welcome back' : 'Join the movement'}<span className="auth-heading-period">.</span></h1>
+            <p className="auth-subtitle">
+              {mode === 'login'
+                ? 'Sign in to continue making a difference.'
+                : 'Create your account and start contributing to your community.'}
+            </p>
+          </div>
 
-              {accountType === 'citizen' ? (
+          <form onSubmit={handleSubmit}>
+            {mode === 'signup' && (
+              <>
                 <label className="auth-field">
-                  <span>Your name</span>
+                  <span>Account type</span>
                   <div>
-                    <User size={17} />
-                    <input
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder="Your display name"
-                      required
-                      maxLength={60}
-                    />
+                    {accountType === 'company' ? <Building2 size={17} /> : <User size={17} />}
+                    <select
+                      value={accountType}
+                      onChange={(event) => setAccountType(event.target.value as AccountType)}
+                    >
+                      <option value="citizen">Citizen</option>
+                      <option value="company">Company / Sponsor</option>
+                    </select>
                   </div>
                 </label>
-              ) : (
-                <label className="auth-field">
-                  <span>Company name</span>
-                  <div>
-                    <Building2 size={17} />
-                    <input
-                      value={companyName}
-                      onChange={(event) =>
-                        setCompanyName(event.target.value)
-                      }
-                      placeholder="Your business name"
-                      required
-                      maxLength={100}
-                    />
-                  </div>
-                  <small>
-                    Your company must be approved before it can
-                    publish rewards.
-                  </small>
-                </label>
-              )}
 
-              <label className="auth-field">
-                <span>Your area</span>
-                <div>
-                  <MapPin size={17} />
-                  <select
-                    value={areaId}
-                    onChange={(event) => setAreaId(event.target.value)}
-                    required
-                    disabled={areasLoading || areas.length === 0}
-                    aria-label="Select your area"
-                  >
-                    <option value="">
-                      {areasLoading
-                        ? 'Loading areas...'
-                        : areas.length === 0
-                          ? 'No areas available'
-                          : 'Select your area'}
-                    </option>
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {!areasLoading && areas.length === 0 && (
-                  <small>
-                    No areas available. Check the areas table and
-                    its signed-out read permissions.
-                  </small>
+                {accountType === 'citizen' ? (
+                  <label className="auth-field">
+                    <span>Your name</span>
+                    <div>
+                      <User size={17} />
+                      <input
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        placeholder="Your display name"
+                        autoComplete="name"
+                        required
+                        maxLength={60}
+                      />
+                    </div>
+                  </label>
+                ) : (
+                  <label className="auth-field">
+                    <span>Company name</span>
+                    <div>
+                      <Building2 size={17} />
+                      <input
+                        value={companyName}
+                        onChange={(event) => setCompanyName(event.target.value)}
+                        placeholder="Your business name"
+                        autoComplete="organization"
+                        required
+                        maxLength={100}
+                      />
+                    </div>
+                    <small className="auth-field-help">Your company must be approved before it can publish rewards.</small>
+                  </label>
                 )}
-              </label>
-            </>
-          )}
 
-          <label className="auth-field">
-            <span>Email address</span>
-            <div>
-              <Mail size={17} />
-              <input
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-          </label>
+                <label className="auth-field">
+                  <span>Your area</span>
+                  <div>
+                    <MapPin size={17} />
+                    <select
+                      value={areaId}
+                      onChange={(event) => setAreaId(event.target.value)}
+                      required
+                      disabled={areasLoading || areas.length === 0}
+                      aria-label="Select your area"
+                    >
+                      <option value="">
+                        {areasLoading ? 'Loading areas...' : areas.length === 0 ? 'No areas available' : 'Select your area'}
+                      </option>
+                      {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                    </select>
+                  </div>
+                  {!areasLoading && areas.length === 0 && (
+                    <small className="auth-field-help">No areas available. Check the areas table and its signed-out read permissions.</small>
+                  )}
+                </label>
+              </>
+            )}
 
-          <label className="auth-field">
-            <span>Password</span>
-            <div>
-              <Lock size={17} />
-              <input
-                type="password"
-                autoComplete={
-                  mode === 'login'
-                    ? 'current-password'
-                    : 'new-password'
-                }
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 8 characters"
-                minLength={8}
-                required
-              />
-            </div>
-          </label>
+            <label className="auth-field">
+              <span>Email address</span>
+              <div>
+                <Mail size={17} />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+            </label>
 
-          {error && (
-            <p className="auth-error" role="alert">
-              {error}
-            </p>
-          )}
+            <label className="auth-field">
+              <span>Password</span>
+              <div>
+                <Lock size={17} />
+                <input
+                  type="password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  required
+                />
+              </div>
+            </label>
 
-          {message && (
-            <p className="auth-message" role="status">
-              {message}
-            </p>
-          )}
+            {error && <p className="auth-error" role="alert">{error}</p>}
+            {message && <p className="auth-message" role="status">{message}</p>}
 
-          <button
-            className="primary-button auth-submit"
-            type="submit"
-            disabled={
-              loading ||
-              (mode === 'signup' &&
-                (areasLoading || areas.length === 0))
-            }
-          >
-            {loading ? (
-              <LoaderCircle size={17} className="auth-spinner" />
-            ) : null}
+            <button
+              className="primary-button auth-submit"
+              type="submit"
+              disabled={loading || (mode === 'signup' && (areasLoading || areas.length === 0))}
+            >
+              {loading && <LoaderCircle size={17} className="auth-spinner" />}
+              <span>
+                {loading
+                  ? 'Please wait...'
+                  : mode === 'login'
+                    ? 'Sign in to CivicQuest'
+                    : accountType === 'company'
+                      ? 'Register company'
+                      : 'Create account'}
+              </span>
+              {!loading && <ArrowRight size={17} />}
+            </button>
+          </form>
 
-            {loading
-              ? 'Please wait...'
-              : mode === 'login'
-                ? 'Sign in'
-                : accountType === 'company'
-                  ? 'Register company'
-                  : 'Create account'}
+          <p className="auth-switch">
+            {mode === 'login' ? 'New to CivicQuest?' : 'Already have an account?'}{' '}
+            <button type="button" onClick={switchMode}>
+              {mode === 'login' ? 'Create account' : 'Sign in'}
+            </button>
+          </p>
 
-            {!loading && <ArrowRight size={16} />}
-          </button>
-        </form>
-
-        <p className="auth-switch">
-          {mode === 'login'
-            ? 'New to CivicQuest?'
-            : 'Already have an account?'}{' '}
-          <button type="button" onClick={switchMode}>
-            {mode === 'login' ? 'Create account' : 'Sign in'}
-          </button>
-        </p>
-
-        <p className="auth-foot">
-          Your good deeds can make a real difference.
-        </p>
-      </section>
+          <div className="auth-secure-note"><ShieldCheck size={15} /><span>Your account is protected by secure authentication.</span></div>
+          <p className="auth-foot">Your good deeds can make a real difference.</p>
+        </section>
+      </div>
+      <p className="auth-copyright">CIVICQUEST <span>•</span> BUILT FOR BETTER COMMUNITIES</p>
     </main>
   )
 }

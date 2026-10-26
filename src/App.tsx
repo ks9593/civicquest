@@ -30,6 +30,8 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import Auth from './Auth'
 import CivicAssistant from './CivicAssistant'
+import CivicIssueDetector from './CivicIssueDetector'
+import CivicMap, { LocationPicker } from './CivicMap'
 import { supabase } from './lib/supabase'
 import './index.css'
 
@@ -40,6 +42,7 @@ type Page =
   | 'Rewards'
   | 'Knowledge Hub'
   | 'AI Assistant'
+  | 'Civic Map'
   | 'Submit Proof'
   | 'My Contributions'
   | 'Become an Area Admin'
@@ -61,6 +64,8 @@ type Quest = {
   image: string
   color: string
   area_id?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 
@@ -81,6 +86,9 @@ type QuestRow = {
   category: string
   location_name?: string | null
   area_id?: string | null
+  xp_reward?: number | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 type Area = { id: string; name: string }
@@ -171,14 +179,12 @@ function mapQuest(row: QuestRow, index: number): Quest {
     category,
     location: row.location_name || 'Community initiative',
     date: 'Join anytime',
-    points: normalizedCategory.includes('education')
-      ? 180
-      : normalizedCategory.includes('environment')
-        ? 120
-        : 100,
+    points: Number(row.xp_reward ?? (normalizedCategory.includes('education') ? 180 : normalizedCategory.includes('environment') ? 120 : 100)),
     volunteers: 0,
     image: questImages[index % questImages.length],
     area_id: row.area_id || null,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
     color: normalizedCategory.includes('education')
       ? 'purple'
       : normalizedCategory.includes('environment')
@@ -198,6 +204,8 @@ function App() {
   const [questDescription, setQuestDescription] = useState('')
   const [questCategory, setQuestCategory] = useState('Environment')
   const [questLocation, setQuestLocation] = useState('')
+  const [questLatitude, setQuestLatitude] = useState<number | null>(null)
+  const [questLongitude, setQuestLongitude] = useState<number | null>(null)
   const [questXp, setQuestXp] = useState('100')
   const [questCreating, setQuestCreating] = useState(false)
   const [questCreateError, setQuestCreateError] = useState('')
@@ -295,7 +303,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('quests')
-      .select('id, title, description, category, location_name, area_id')
+      .select('id, title, description, category, location_name, area_id, xp_reward, latitude, longitude')
       .order('title', { ascending: true })
 
     if (error) {
@@ -801,6 +809,8 @@ function App() {
       description: questDescription.trim(),
       category: questCategory,
       location_name: questLocation.trim(),
+      latitude: questLatitude,
+      longitude: questLongitude,
       xp_reward: Number(questXp),
       area_id: targetAreaId,
       created_by: session.user.id,
@@ -814,6 +824,8 @@ function App() {
     setQuestTitle('')
     setQuestDescription('')
     setQuestLocation('')
+    setQuestLatitude(null)
+    setQuestLongitude(null)
     setQuestXp('100')
     notify('Quest created successfully.')
     await loadQuests()
@@ -1202,6 +1214,7 @@ function App() {
             { label: 'Rewards' as Page, icon: Gift },
             { label: 'Knowledge Hub' as Page, icon: BookOpen },
             { label: 'AI Assistant' as Page, icon: Sparkles },
+            { label: 'Civic Map' as Page, icon: MapPin },
             { label: 'Submit Proof' as Page, icon: ShieldCheck },
             { label: 'My Contributions' as Page, icon: CheckCircle2 },
             ...(profile.role === 'citizen' ? [{ label: 'Become an Area Admin' as Page, icon: ShieldCheck }] : []),
@@ -1626,6 +1639,10 @@ function App() {
                     </select>
                   </label>
 
+                  <CivicIssueDetector
+                    onUseDraft={(draft) => setContributionNotes(draft)}
+                  />
+
                   <label className="contribution-field">
                     <span>What did you contribute?</span>
                     <textarea
@@ -1646,7 +1663,9 @@ function App() {
                       onChange={(event) => setEvidenceUrl(event.target.value)}
                       placeholder="https://example.com/evidence"
                     />
-                    <small>Use a link to evidence you have permission to share. Photo uploads aren't enabled yet.</small>
+                    <small>
+                      Use a link to evidence you have permission to share. The AI photo analysis above does not permanently store or attach the analyzed image.
+                    </small>
                   </label>
 
                   {contributionError && (
@@ -2044,7 +2063,24 @@ function App() {
                   <label className="contribution-field"><span>Quest title</span><input value={questTitle} onChange={(event) => setQuestTitle(event.target.value)} maxLength={120} required /></label>
                   <label className="contribution-field"><span>Description</span><textarea value={questDescription} onChange={(event) => setQuestDescription(event.target.value)} rows={3} maxLength={2000} required /></label>
                   <label className="contribution-field"><span>Category</span><select value={questCategory} onChange={(event) => setQuestCategory(event.target.value)}><option>Environment</option><option>Education</option><option>Community</option><option>Health</option><option>Accessibility</option></select></label>
-                  <label className="contribution-field"><span>Location</span><input value={questLocation} onChange={(event) => setQuestLocation(event.target.value)} maxLength={160} required /></label>
+                  <label className="contribution-field"><span>Location name</span><input value={questLocation} onChange={(event) => setQuestLocation(event.target.value)} maxLength={160} required placeholder="Park, school, street, or community center" /></label>
+                  <div className="contribution-field">
+                    <span>Choose the exact quest location</span>
+                    <p className="form-hint">Click the map to place or move the pin. Coordinates are saved with this quest.</p>
+                    <LocationPicker
+                      latitude={questLatitude}
+                      longitude={questLongitude}
+                      onChange={(latitude, longitude) => {
+                        setQuestLatitude(latitude)
+                        setQuestLongitude(longitude)
+                      }}
+                    />
+                    <small>
+                      {questLatitude !== null && questLongitude !== null
+                        ? `Selected coordinates: ${questLatitude.toFixed(6)}, ${questLongitude.toFixed(6)}`
+                        : 'No pin selected yet. Select a location on the map to make this quest appear on the Civic Map.'}
+                    </small>
+                  </div>
                   <label className="contribution-field"><span>XP reward</span><input type="number" min="1" max="10000" value={questXp} onChange={(event) => setQuestXp(event.target.value)} required /></label>
                   <button className="primary-button" type="submit" disabled={questCreating || areas.length === 0}>{questCreating ? 'Creating quest...' : 'Create quest'} <Plus size={16} /></button>
                 </form>
@@ -2213,6 +2249,17 @@ function App() {
                 Get practical, non-partisan guidance on community participation and constructive civic action.
               </p>
               <CivicAssistant />
+            </section>
+          )}
+
+          {page === 'Civic Map' && (
+            <section className="section-block page-section">
+              <div className="eyebrow">EXPLORE YOUR COMMUNITY</div>
+              <h2>Civic Map</h2>
+              <p className="page-intro">
+                Discover community issues and explore nearby civic activity.
+              </p>
+              <CivicMap areaId={profile.role === 'area_admin' ? profile.area_id : (selectedAreaId || null)} />
             </section>
           )}
 
